@@ -1,0 +1,65 @@
+stages:
+  - deploy-master
+  - deploy-staging
+
+deploy-develop:
+  stage: deploy-staging
+  variables:
+    GIT_SSL_NO_VERIFY: "1"
+  tags:
+    - staging
+  only:
+    - staging
+  script:
+    #Test
+    - rm -fr /home/api/staging/tmp
+    - git clone git@git.nuzhnapomosh.ru:np/api.git /home/api/staging/tmp --branch=staging
+    - cd /home/api/staging/tmp
+    - cp .env.example .env
+    - touch ./database/local.sqlite
+    - composer install --no-interaction --ansi --prefer-dist
+    - php artisan key:generate --ansi
+    - php artisan migrate --seed
+    - composer phpcs
+    - composer phpstan
+    - php artisan test
+    - composer artisan-clear
+    - composer artisan-optimize
+    #Dev
+    - cd /home/api/staging/www
+    - git pull
+    - composer install --no-interaction --ansi --prefer-dist
+    - php artisan migrate --force
+    - composer artisan-clear
+    - composer artisan-optimize
+    - php artisan l5-swagger:generate
+
+deploy-master:
+  stage: deploy-master
+  tags:
+    - master
+  only:
+    - master
+  script:
+    #Test
+    - rm -fr /home/api/master/tmp
+    - git clone git@git.nuzhnapomosh.ru:np/api.git /home/api/master/tmp --branch=master
+    - cd /home/api/master/tmp
+    - cp .env.example .env
+    - touch ./database/local.sqlite
+    - composer install --no-interaction --ansi --prefer-dist
+    - php artisan key:generate --ansi
+    - php artisan migrate --seed
+    - composer phpcs
+    - composer phpstan
+    - php artisan test
+    - composer artisan-clear
+    - composer artisan-optimize
+    #Prod
+    - cd /home/api/master/www
+    - git pull
+    - composer install --no-interaction --ansi --prefer-dist --optimize-autoloader --no-dev
+    - php artisan migrate --force
+    - composer artisan-clear
+    - composer artisan-optimize
+    - php artisan l5-swagger:generate
